@@ -16,23 +16,23 @@
 #include <string>               // std::string
 #include <memory>               // std::shared_ptr
 
-#include "idriver_comm.hpp"     // IDriverComm
+#include "idriver_comm.hpp"     // IDriver
 #include "driver_data.hpp"      // DriverData
 
 
 
-class NBDDriverComm: public IDriverComm
+class NBDDriver: public IDriver
 {
 public:
 	//
 	// Special Members Constructor
-    explicit NBDDriverComm(const std::string& pathToDevice_, size_t storageSize_);
-    explicit NBDDriverComm(const std::string& pathToDevice_, size_t numBlocks, size_t blockSize_);
-    ~NBDDriverComm() noexcept override;  
+    explicit NBDDriver(const std::string& pathToDevice_, size_t storageSize_);
+    explicit NBDDriver(const std::string& pathToDevice_, size_t numBlocks, size_t blockSize_);
+    ~NBDDriver() noexcept override;  
 
     // Cctor. copy= are blocked from use
-    NBDDriverComm(const NBDDriverComm& other_) = delete;
-    NBDDriverComm& operator= (const NBDDriverComm& other_) = delete;
+    NBDDriver(const NBDDriver& other_) = delete;
+    NBDDriver& operator= (const NBDDriver& other_) = delete;
 
     //
 	// Main Functionality
@@ -44,22 +44,45 @@ public:
 	// Extra Functionality
     int GetFD() const override;
 
-    //read on std::thread! //
-    //thread should be not detach //
 
 private:
-    int m_sockFds[2];    // Server and Client
-    int m_nbdFd;        // NBD device file descriptor.
+    int m_sockFds[2];   // for both NBD and Driver
+    size_t m_storageSize;
 
     enum SocketEnd {DriverSoc, NBDSoc};
+
+
+    // NBD device open file-descriptor nested class 
+    // NOTE     Initiated and destroyed with RAII.
+    class NBDOpenFile
+    {
+    public:
+        NBDOpenFile(const std::string& pathToDevice_);
+        ~NBDOpenFile();
+        NBDOpenFile(const NBDOpenFile& other_) = delete;
+        NBDOpenFile& operator=(const NBDOpenFile& other_) = delete;
+
+        int m_fd;        
+    };
     
+    NBDOpenFile m_nbd; // NBD device file descriptor.
+
+
     //
     // Utils Functions
     void InitDriverSocketsFD();
-    size_t CalcStorageSizeIMP(size_t num_blocks_, size_t block_size_);
-    void ConnectNBDDevice(const std::string& device_path_, size_t storage_size_)
+    void ConnectNBDDevice();
+    size_t CalcStorageSize(size_t numBlocks, size_t blockSize_);
 };
 
+
+
+//
+// Exception Error Handling
+struct NBDDriverError: public IDriverError
+{
+    NBDDriverError(const std::string& str_ = "NBD Error");
+};
 
 
 #endif // NBDDRIVER_COMM_HPP
