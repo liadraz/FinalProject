@@ -49,6 +49,7 @@ public:
 // Impl of the virtual Dtor
 IDriver::~IDriver() = default;
 
+
 //
 // Exception Error Handling
 struct IDriverError: public std::runtime_error
