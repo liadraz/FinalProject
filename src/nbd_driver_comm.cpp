@@ -15,54 +15,64 @@
 #include <fcntl.h>              // open
 #include <sys/ioctl.h>          // ioctl
 #include <linux/nbd.h>          // NBD_SET_BLKSIZE
+#include <string.h>             // strerror
 
 #include "nbd_driver_comm.hpp"     // 
 
 
 //----------------------------------------------------------------------------//
-//	NBDDriverComm Definitions
+//	NBDDriver Definitions
 //----------------------------------------------------------------------------//
-// Create sockets and init NBDDriverComm class members
-NBDDriverComm::NBDDriverComm
-    (const std::string& device_path_, size_t storage_size_)
+
+// Create sockets and init NBDDriver class members
+NBDDriver::NBDDriver
+    (const std::string& pathToDevice_, size_t storageSize_):
+    m_storageSize(storageSize_),
+    m_nbd(pathToDevice_)
 {
+    assert(0 < storageSize_);
+
     InitDriverSocketsFD();
-    ConnectNBDDevice(device_path_, storage_size_);
+    ConnectNBDDevice();
 }
 
 
-NBDDriverComm::NBDDriverComm
-    (const std::string& device_path_, size_t num_blocks_, size_t block_size_)
+NBDDriver::NBDDriver
+    (const std::string& pathToDevice_, size_t numBlocks, size_t blockSize_):
+    m_storageSize(CalcStorageSize(numBlocks, blockSize_)),
+    m_nbd(pathToDevice_)
 {
+    assert(0 < numBlocks);
+    assert(0 < blockSize_);
+
     InitDriverSocketsFD();
-    ConnectNBDDevice(device_path_, CalcStorageSizeIMP(num_blocks_, block_size_));
+    ConnectNBDDevice();
 }
+
 
 //
 // Utils Functions
 //----------------------------------------------------------------------------//
-void NBDDriverComm::InitDriverSocketsFD()
+void NBDDriver::InitDriverSocketsFD()
 {
     int socketPairFD[2];
     int error = 0;
 
-    // Creates a pair of sockets which are connected to each other;
-    // In a related processes; Each socket is a biodirectional.
+    // Creates a pair of bio-directional sockets which are connected to each other;
     error = socketpair(AF_UNIX, SOCK_STREAM, 0, socketPairFD);
-    assert(!error);
+    if (-1 == error)
+    {
+        fprintf(stderr, "Trying to create socketpair failed. [%s]\n", strerror(errno));
+        throw NBDDriverError();
+    }
 
     m_sockFds[DriverSoc] = socketPairFD[0];      // Server - Driver Master App
     m_sockFds[NBDSoc] = socketPairFD[1];         // Client - NBD device
-
 }
 
-void NBDDriverComm::ConnectNBDDevice(const std::string& device_path_, size_t storage_size_)
+
+void NBDDriver::ConnectNBDDevice()
 {
-    // TODO: Write  Exception for each syscall
-
-    // get fd for the NBD actual device
-    m_nbdFd = open(&device_path_, O_RDWR);
-
     // Set nbd Storage size
     ioctl(m_nbdFd, NBD_SET_BLKSIZE, storage_size_);
     
@@ -75,35 +85,55 @@ void NBDDriverComm::ConnectNBDDevice(const std::string& device_path_, size_t sto
 }
 
 
-size_t NBDDriverComm::CalcStorageSizeIMP(size_t num_blocks_, size_t block_size_)
+size_t NBDDriver::CalcStorageSize(size_t numBlocks, size_t blockSize_)
 {
-    return num_blocks_ * block_size_;
+    return numBlocks * blockSize_;
 }
 
 
-NBDDriverComm::~NBDDriverComm()
+NBDDriver::~NBDDriver()
 {}
+
 
 
 // Member functions - Main Functionality
 //----------------------------------------------------------------------------//
-std::shared_ptr<DriverData> NBDDriverComm::ReceiveRequest()
+std::shared_ptr<DriverData> NBDDriver::ReceiveRequest()
 {
 
 }
 
-void NBDDriverComm::SendReply(std::shared_ptr<const DriverData> data_)
+void NBDDriver::SendReply(std::shared_ptr<const DriverData> data_)
 {
 
 }
 
-void NBDDriverComm::Disconnect()
+void NBDDriver::Disconnect()
 {
 
 }
 
 
-int NBDDriverComm::GetFD() const
+int NBDDriver::GetFD() const
 {
     return m_sockFds[NBDSoc];
+}
+
+
+
+//----------------------------------------------------------------------------//
+//	NBDOpenFile Nested Class Definitions
+//----------------------------------------------------------------------------//
+
+NBDDriver::NBDOpenFile::NBDOpenFile(const std::string& pathToDevice_)
+{
+    // Get fd for the NBD actual device. Permission Read/Write.
+    m_fd = open(pathToDevice_.c_str(), O_RDWR);
+
+    if (-1 == m_fd)
+    {
+        fprintf(stderr, "Open path to device %s Failed. [%s]\n", pathToDevice_, strerror(errno));
+
+        throw NBDDriverError();
+    }
 }
