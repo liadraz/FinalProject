@@ -14,23 +14,26 @@
 #ifndef IDRIVER_COMM_HPP
 #define IDRIVER_COMM_HPP
 
-#include <memory>               // std::shared_ptr
+#include <memory>           // std::shared_ptr
+#include <string>           // std::string
+#include <stdexcept>        // std::runtime_error
+
 #include "driver_data.hpp"      // DriverData
 
 
 // << Interface >>
-class IDriverComm
+class IDriver
 {
 
 public:
 	//
 	// Special Members Constructor
-    explicit IDriverComm() = default;
-    virtual ~IDriverComm() = 0;
+    explicit IDriver() = default;
+    virtual ~IDriver() = 0;
 
     // Cctor. copy= are blocked from use
-    IDriverComm(const IDriverComm& other_) = delete;   
-    IDriverComm& operator=(const IDriverComm& other_) = delete;
+    IDriver(const IDriver& other_) = delete;   
+    IDriver& operator=(const IDriver& other_) = delete;
     
 	//
 	// Main Functionality
@@ -43,10 +46,15 @@ public:
     virtual int GetFD() const = 0;
 };
 
-
 // Impl of the virtual Dtor
-IDriverComm::~IDriverComm() = default;
+IDriver::~IDriver() = default;
 
+//
+// Exception Error Handling
+struct IDriverError: public std::runtime_error
+{
+    IDriverError(const std::string& str_ = "IDrive error");
+};
 
 
 #endif // IDRIVER_COMM_HPP
